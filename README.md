@@ -2,6 +2,8 @@
 
 # ⌨️ TabType
 
+> Maintained fork: see [FORK.md](FORK.md) for security/privacy changes, upstream contributions, build instructions and verification limits. Original project: [nilava/TabType](https://github.com/nilava/TabType).
+
 ### A free, open-source, 100% on-device AI autocomplete for macOS
 
 **TabType predicts your next words as you type — in almost any app — and runs entirely on your Mac. No cloud. No account. No subscription. No telemetry.** It's an open-source [Cotypist](https://cotypist.app/) alternative that learns your voice and never sends a keystroke off your machine.
