@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import TabTypeKit
 
 /// What TabType is allowed to read for extra context, grouped the way Cotypist's own
 /// Context pane is (Screenshot Settings / Clipboard Settings) rather than folded into
@@ -263,7 +264,13 @@ struct PersonalizationPane: View {
             SyncSection()
             Section("Learn from your writing") {
                 Toggle("Learn from what I write", isOn: $settings.collectTypingHistory)
-                Text("TabType can retain your writing to reuse familiar words and phrases. It attempts to remove recognizable secrets, but cannot detect every sensitive detail. Writing is encrypted on this Mac; optional sync sends an encrypted copy through iCloud Drive. Control learning for each app in Apps. This history is shared across apps, without separate memory for each contact.")
+                Text("TabType can retain your writing to reuse familiar words and phrases. It attempts to remove recognizable secrets, but cannot detect every sensitive detail. Writing is encrypted on this Mac; optional sync sends an encrypted copy through iCloud Drive. In Apps, turning learning off stops both collection and reuse in that app; it does not erase past writing.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("Reuse learned phrases from", selection: $settings.personalizationScope) {
+                    Text("This app only").tag(PersonalizationScope.currentApp)
+                    Text("All apps").tag(PersonalizationScope.allApps)
+                }
+                Text("This app only keeps writing styles separate between apps. Browser websites share one app, and there is no separate memory for each contact. All apps restores shared phrasing. Update TabType on every Mac to use this control consistently.")
                     .font(.caption).foregroundStyle(.secondary)
                 Picker("Personalization strength", selection: $settings.personalizationStrength) {
                     Text("Gentle").tag("gentle")
