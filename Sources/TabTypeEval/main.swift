@@ -150,6 +150,8 @@ case "run":
     // with a live llama runtime can otherwise abort during process teardown.
     let backendName = option("--backend") ?? "decoder"
     guard ["decoder", "greedy"].contains(backendName) else { fail("unknown backend \(backendName)") }
+    let appGates = arguments.contains("--app-gates")
+    if appGates && backendName != "decoder" { fail("--app-gates requires the decoder backend") }
     let author = option("--author") ?? "Nilava Chowdhury"
     let outPath = option("--out")
     let baseline = try option("--baseline").map { try EvalRunner.load(url($0)) }
@@ -174,6 +176,7 @@ case "run":
                          "caseCount": String(cases.count)]
     if let path = option("--history") { configuration["historySHA256"] = try digest(url(path)) }
     configuration["historyScope"] = historyScope.rawValue
+    configuration["appInputGates"] = String(appGates)
     let runtime = try LlamaRuntime(modelPath: modelPath)
     let backend: CompletionBackend
     switch backendName {
@@ -203,7 +206,8 @@ case "run":
                                  noisy: arguments.contains("--noise"),
                                  sections: arguments.contains("--sections"),
                                  conversations: !arguments.contains("--plain-chat"),
-                                 history: history, hintFactor: hintFactor, style: style, historyScope: historyScope)
+                                 history: history, hintFactor: hintFactor, style: style, historyScope: historyScope,
+                                 appGates: appGates)
     case let other:
         fail("unknown backend \(other)")
     }

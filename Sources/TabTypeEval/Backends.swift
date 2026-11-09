@@ -84,6 +84,7 @@ final class DecoderBackend: CompletionBackend {
     /// entries (case ids start with their entry index).
     private let history: [CorpusEntry]?
     private let historyScope: PersonalizationScope
+    private let appGates: Bool
     private let hintFactor: Double
     private let noisy: Bool
     private let conversations: Bool
@@ -99,11 +100,12 @@ final class DecoderBackend: CompletionBackend {
          template: ModelTemplate?, templateName: String, authorName: String?, situationHeader: Bool = false,
          noisy: Bool = false, sections: Bool = false, conversations: Bool = true,
          history: [CorpusEntry]? = nil, hintFactor: Double = 0.5, style: PredictionStyle? = nil,
-         historyScope: PersonalizationScope = .allApps) {
+         historyScope: PersonalizationScope = .allApps, appGates: Bool = false) {
         self.noisy = noisy
         self.conversations = conversations
         self.history = history
         self.historyScope = historyScope
+        self.appGates = appGates
         self.hintFactor = hintFactor
         self.runtime = runtime
         self.options = options
@@ -118,6 +120,10 @@ final class DecoderBackend: CompletionBackend {
     }
 
     func complete(_ evalCase: EvalCase) async throws -> String? {
+        if appGates && !PredictionEligibility.shouldPredict(evalCase.prefix) {
+            lastConfidence = 0; lastWords = []; lastFollowsHint = false; lastHintSupport = 0
+            return nil
+        }
         let text = assembler?.assemble(evalCase.promptContext(authorName: authorName, noisy: noisy,
                                                                conversations: conversations))
             ?? EvalPrompt.document(for: evalCase)
