@@ -234,23 +234,23 @@ enum AccessibilityBridge {
     }
 
     static func caretOffset(of element: AXUIElement) -> Int? {
+        selectedRange(of: element)?.location
+    }
+
+    static func selectedRange(of element: AXUIElement) -> CFRange? {
         var value: CFTypeRef?
         let err = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &value)
-        guard err == .success, let value else { return nil }
+        guard err == .success, let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
         var range = CFRange()
-        guard AXValueGetValue(value as! AXValue, .cfRange, &range) else { return nil }
-        return range.location
+        guard AXValueGetValue(value as! AXValue, .cfRange, &range),
+              range.location >= 0, range.length >= 0 else { return nil }
+        return range
     }
 
     /// Destructive inline replacement requires a proven insertion point, rather
     /// than treating a selection's start (or an unavailable range) as a caret.
     static func hasCollapsedCaret(of element: AXUIElement) -> Bool {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXValueGetTypeID() else { return false }
-        var range = CFRange()
-        return AXValueGetValue(value as! AXValue, .cfRange, &range)
-            && range.location >= 0 && range.length == 0
+        selectedRange(of: element)?.length == 0
     }
 
     /// Whether there's text after the caret (rough proxy for "mid-line": the caret
@@ -299,8 +299,14 @@ enum AccessibilityBridge {
     /// field's text. Unreadable AX (common in Electron) returns false — callers use
     /// this to gate rendering that would overlap any text after the caret.
     static func caretConfirmedAtEnd(of element: AXUIElement) -> Bool {
-        guard let full = stringValue(of: element), let caret = caretOffset(of: element) else { return false }
-        return caret >= (full as NSString).length
+        guard let full = stringValue(of: element), let range = selectedRange(of: element) else { return false }
+        return caretIsAtEnd(textUTF16Length: (full as NSString).length,
+                            selectionLocation: range.location, selectionLength: range.length)
+    }
+
+    nonisolated static func caretIsAtEnd(textUTF16Length: Int, selectionLocation: Int,
+                                         selectionLength: Int) -> Bool {
+        textUTF16Length >= 0 && selectionLocation == textUTF16Length && selectionLength == 0
     }
 
     /// Text immediately preceding the caret, capped at `maxChars`.

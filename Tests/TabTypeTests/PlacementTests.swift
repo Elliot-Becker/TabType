@@ -5,6 +5,32 @@ import AppKit
 
 final class PlacementTests: XCTestCase {
 
+    func testInlineOnlyWithConfirmedEndAndReliableCaret() {
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, caretConfirmedAtEnd: true,
+            hasSelection: false, laggyCaret: false), .inline)
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, caretConfirmedAtEnd: false,
+            hasSelection: false, laggyCaret: false), .bubble)
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, caretConfirmedAtEnd: true,
+            hasSelection: false, laggyCaret: true), .bubble)
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: false, caretConfirmedAtEnd: false,
+            hasSelection: false, laggyCaret: false), .hud)
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, caretConfirmedAtEnd: true,
+            hasSelection: true, laggyCaret: false), .hidden)
+    }
+
+    func testEndProofRejectsInvalidAndSelectedRanges() {
+        XCTAssertTrue(AccessibilityBridge.caretIsAtEnd(textUTF16Length: 8, selectionLocation: 8, selectionLength: 0))
+        XCTAssertFalse(AccessibilityBridge.caretIsAtEnd(textUTF16Length: 8, selectionLocation: 3, selectionLength: 0))
+        XCTAssertFalse(AccessibilityBridge.caretIsAtEnd(textUTF16Length: 8, selectionLocation: 9, selectionLength: 0))
+        XCTAssertFalse(AccessibilityBridge.caretIsAtEnd(textUTF16Length: 8, selectionLocation: 8, selectionLength: 1))
+        XCTAssertFalse(AccessibilityBridge.caretIsAtEnd(textUTF16Length: -1, selectionLocation: 0, selectionLength: 0))
+        let text = "A👍🏽é"
+        XCTAssertTrue(AccessibilityBridge.caretIsAtEnd(textUTF16Length: text.utf16.count,
+            selectionLocation: text.utf16.count, selectionLength: 0))
+        XCTAssertFalse(AccessibilityBridge.caretIsAtEnd(textUTF16Length: text.utf16.count,
+            selectionLocation: text.count, selectionLength: 0))
+    }
+
     // MARK: - Font from AX
 
     func testInstalledFaceResolvesByName() {

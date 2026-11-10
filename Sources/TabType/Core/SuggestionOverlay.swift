@@ -58,6 +58,16 @@ final class GhostTextView: NSView {
 @MainActor
 final class SuggestionOverlay {
 
+    enum PresentationMode: Equatable { case inline, bubble, hud, hidden }
+
+    /// Shared display decision, kept separate from window drawing for regressions.
+    nonisolated static func presentationMode(hasCaret: Bool, caretConfirmedAtEnd: Bool,
+                                             hasSelection: Bool, laggyCaret: Bool) -> PresentationMode {
+        if hasSelection { return .hidden }
+        guard hasCaret else { return .hud }
+        return caretConfirmedAtEnd && !laggyCaret ? .inline : .bubble
+    }
+
     private var panel: NSPanel?
     private let label = NSTextField(labelWithString: "")
     /// The inline ghost (the HUD and bubble use `label`).

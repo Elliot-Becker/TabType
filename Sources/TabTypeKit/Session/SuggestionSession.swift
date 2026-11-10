@@ -14,6 +14,8 @@ import Foundation
 public struct SuggestionSession: Sendable {
     public struct Ghost: Equatable, Sendable {
         public var text: String
+        /// Identity of this placement, even when a later ghost has identical text.
+        public let presentationID: UInt64
         /// The un-accepted tail of a suggestion being accepted word by word.
         public var isRemainder: Bool
     }
@@ -40,12 +42,18 @@ public struct SuggestionSession: Sendable {
     }
 
     public private(set) var ghost: Ghost?
+    private var presentationCounter: UInt64 = 0
     private var lastAccepted: (text: String, at: Date)?
 
     public init() {}
 
     public var text: String? { ghost?.text }
     public var isProtectingRemainder: Bool { ghost?.isRemainder == true }
+
+    private mutating func nextGhost(_ text: String, isRemainder: Bool) -> Ghost {
+        presentationCounter &+= 1
+        return Ghost(text: text, presentationID: presentationCounter, isRemainder: isRemainder)
+    }
 
     /// Show `text` as the ghost. A new suggestion never replaces a protected
     /// remainder (returns false); re-presenting the ghost (`isNew: false`) keeps
@@ -54,9 +62,9 @@ public struct SuggestionSession: Sendable {
     public mutating func register(_ text: String, isNew: Bool) -> Bool {
         if isNew {
             if isProtectingRemainder { return false }
-            ghost = Ghost(text: text, isRemainder: false)
+            ghost = nextGhost(text, isRemainder: false)
         } else {
-            ghost = Ghost(text: text, isRemainder: ghost?.isRemainder ?? false)
+            ghost = nextGhost(text, isRemainder: ghost?.isRemainder ?? false)
         }
         return true
     }
@@ -66,7 +74,7 @@ public struct SuggestionSession: Sendable {
     public mutating func typeThrough(_ chars: String) -> String? {
         if let ghost, !chars.isEmpty, ghost.text.hasPrefix(chars), ghost.text.count > chars.count {
             let rest = String(ghost.text.dropFirst(chars.count))
-            self.ghost = Ghost(text: rest, isRemainder: ghost.isRemainder)
+            self.ghost = nextGhost(rest, isRemainder: ghost.isRemainder)
             return rest
         }
         ghost = nil
@@ -78,7 +86,7 @@ public struct SuggestionSession: Sendable {
     public mutating func accept(whole: Bool, options: AcceptOptions, now: Date = Date()) -> (insert: String, remainder: String)? {
         guard let ghost, !ghost.text.isEmpty else { return nil }
         let (insert, remainder) = whole ? (ghost.text, "") : Self.splitFirstWord(ghost.text, options: options)
-        self.ghost = remainder.isEmpty ? nil : Ghost(text: remainder, isRemainder: true)
+        self.ghost = remainder.isEmpty ? nil : nextGhost(remainder, isRemainder: true)
         lastAccepted = (insert, now)
         return (insert, remainder)
     }

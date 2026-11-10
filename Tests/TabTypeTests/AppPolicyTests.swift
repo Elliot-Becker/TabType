@@ -9,6 +9,14 @@ final class AppPolicyTests: XCTestCase {
         AppPolicyStore.userOverrides = [:]
     }
 
+    func testOpenAIComposersUseConservativeCaretPolicy() {
+        for id in ["com.openai.codex", "com.openai.chat"] {
+            let p = AppPolicyStore.policy(forBundleId: id)
+            XCTAssertTrue(p.laggyCaret, id)
+            XCTAssertFalse(p.allowsMidLine, id)
+        }
+    }
+
     func testChatAppGetsFullChatTreatment() {
         let p = AppPolicyStore.policy(forBundleId: "net.whatsapp.WhatsApp")
         XCTAssertTrue(p.forceScreenContext)

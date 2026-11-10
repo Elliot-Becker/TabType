@@ -4,6 +4,34 @@ import XCTest
 final class SuggestionSessionTests: XCTestCase {
     private let defaults = SuggestionSession.AcceptOptions()
 
+    func testDeferredPaintCannotSurviveDismissalAndIdenticalTextReturning() {
+        var s = SuggestionSession()
+        s.register("ional", isNew: true)
+        let pendingPaint = s.ghost
+        s.clear()
+        s.register("ional", isNew: true)
+        XCTAssertNotEqual(pendingPaint, s.ghost, "same letters must not revive a dismissed paint")
+    }
+
+    func testNewPlacementOfTheSameRemainderInvalidatesOldPaint() {
+        var s = SuggestionSession()
+        s.register("at it later", isNew: true)
+        _ = s.accept(whole: false, options: defaults)
+        let pendingPaint = s.ghost
+        s.register(" it later", isNew: false)
+        XCTAssertTrue(s.isProtectingRemainder)
+        XCTAssertNotEqual(pendingPaint, s.ghost)
+    }
+
+    func testRejectedReplacementKeepsTheProtectedPlacementValid() {
+        var s = SuggestionSession()
+        s.register("at it later", isNew: true)
+        _ = s.accept(whole: false, options: defaults)
+        let pendingPaint = s.ghost
+        XCTAssertFalse(s.register("a different phrase", isNew: true))
+        XCTAssertEqual(pendingPaint, s.ghost)
+    }
+
     func testWordSplitHoldsBackSpaceAndPunctuation() {
         typealias S = SuggestionSession
         XCTAssertEqual(S.splitFirstWord("at it later", options: defaults).0, "at")

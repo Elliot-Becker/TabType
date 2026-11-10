@@ -95,7 +95,7 @@ app)
     # Scripts/setup-signing.sh) so macOS keeps Accessibility/Screen Recording grants
     # across rebuilds; fall back to ad-hoc if it isn't installed.
     IDENTITY="${SIGN_IDENTITY:-TabType Dev}"
-    if security find-identity -v -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
+    if [[ "$IDENTITY" != "-" ]] && security find-identity -v -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
         echo "Signing with \"$IDENTITY\" (stable — permissions persist)."
         codesign --force --deep --sign "$IDENTITY" \
             --identifier app.tabtype.TabType \
@@ -113,6 +113,12 @@ app)
     mkdir -p "$ROOT/dist"
     # Keep a transport artifact whose signature cannot acquire Finder attributes.
     ditto -c -k --sequesterRsrc --keepParent "$APP" "$ROOT/dist/TabType.zip"
+    # Fork installs can use only the verified transport artifact. Finder may add
+    # metadata to a loose bundle inside a synced workspace after it is copied.
+    if [[ "${TABTYPE_ARCHIVE_ONLY:-0}" == "1" ]]; then
+        echo "Done: $ROOT/dist/TabType.zip (archive-only; verify after extraction)"
+        exit 0
+    fi
     rm -rf "$ROOT/dist/TabType.app"
     ditto "$APP" "$ROOT/dist/TabType.app"
     APP="$ROOT/dist/TabType.app"

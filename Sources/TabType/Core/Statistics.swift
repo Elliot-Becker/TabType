@@ -20,6 +20,9 @@ final class Statistics: ObservableObject {
         case discardedStale               // input changed while the model was generating
         case heldForRemainder             // prediction held while Tabbing through a suggestion
         case occupiedFallback             // inline spot had pixels — shown as HUD pill instead
+        case separatePreview              // unsafe inline position — use an off-line preview
+        case discardedStalePaint          // deferred drawing belongs to an older placement/edit
+        case suppressedSelection          // a selection is not an insertion point
 
         var label: String {
             switch self {
@@ -31,6 +34,9 @@ final class Statistics: ObservableObject {
             case .discardedStale: return "Discarded (input changed)"
             case .heldForRemainder: return "Prediction held (Tabbing through)"
             case .occupiedFallback: return "Inline blocked → shown as pill"
+            case .separatePreview: return "Preview moved off the typing line"
+            case .discardedStalePaint: return "Stale drawing attempts blocked"
+            case .suppressedSelection: return "Skipped (text selected)"
             }
         }
     }

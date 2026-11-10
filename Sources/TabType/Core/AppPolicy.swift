@@ -240,10 +240,11 @@ enum AppPolicyStore {
     ]
     private static let codeEditorBundlePrefixes = ["com.jetbrains."]
 
-    /// Electron/Chromium apps whose AX caret bounds lag the real caret while
+    /// Apps with web/Electron composers whose AX bounds can lag the real caret
     /// typing (observed ~0.5s in Claude Desktop) — inline ghost placement can't be
     /// trusted there; suggestions render as a bubble above the caret instead.
-    private static let electronApps: Set<String> = [
+    private static let laggyCaretApps: Set<String> = [
+        "com.openai.codex", "com.openai.chat",
         "com.anthropic.claudefordesktop", "com.tinyspeck.slackmacgap",
         "com.hnc.Discord", "net.whatsapp.WhatsApp", "notion.id", "md.obsidian",
         "com.microsoft.VSCode", "com.spotify.client", "com.figma.Desktop",
@@ -314,7 +315,7 @@ enum AppPolicyStore {
         // Electron/web apps: AX caret bounds lag behind the real caret while
         // typing — present only after a typing pause, and never mid-line (the
         // after-text position can't be trusted enough to avoid overlap there).
-        if electronApps.contains(id) {
+        if laggyCaretApps.contains(id) {
             policy.laggyCaret = true
             policy.allowsMidLine = false
         }

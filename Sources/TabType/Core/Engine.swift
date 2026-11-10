@@ -1040,6 +1040,7 @@ final class Engine {
             Statistics.shared.record(.heldForRemainder)
             return
         }
+        let pendingPresentation = session.ghost
         let policy = AppPolicyStore.policy(forBundleId: AccessibilityBridge.frontmostBundleId())
         // Electron bounds lag ~0.3s after the last keystroke; 0.4s matches the
         // observed Cotypist timing, with the occupancy/ink-band guards as backstop.
@@ -1054,7 +1055,7 @@ final class Engine {
         observeFocusedField()
 
         func attempt() {
-            guard !placed, currentSuggestion == suggestion, keystrokeAt == lastKeystrokeAt else { return }
+            guard !placed, session.ghost == pendingPresentation, keystrokeAt == lastKeystrokeAt else { return }
             let element = AccessibilityBridge.focusedElement()
             let caretRect = element.flatMap { AccessibilityBridge.caretRect(of: $0) }
             let elapsed = Date().timeIntervalSince(keystrokeAt)
@@ -1804,8 +1805,29 @@ final class Engine {
         } else {
             guard session.register(suggestion, isNew: isNewSuggestion) else { return }
         }
-        if isNewSuggestion { Statistics.shared.recordShown() }
         shownAllowWrap = allowWrap
+        guard let presentation = session.ghost else { return }
+        let editAt = lastKeystrokeAt
+        let canPaint: () -> Bool = { [weak self] in
+            guard let self else { return false }
+            guard self.session.ghost == presentation, self.lastKeystrokeAt == editAt else {
+                Statistics.shared.record(.discardedStalePaint)
+                return false
+            }
+            return ContentAccessPolicy.isCurrent(origin)
+        }
+        let element = origin.element
+        let mode = SuggestionOverlay.presentationMode(
+            hasCaret: inlineCaret != nil,
+            caretConfirmedAtEnd: AccessibilityBridge.caretConfirmedAtEnd(of: element),
+            hasSelection: (AccessibilityBridge.selectedRange(of: element)?.length ?? 0) > 0,
+            laggyCaret: policy.laggyCaret)
+        if mode == .hidden {
+            Statistics.shared.record(.suppressedSelection)
+            clearSuggestion()
+            return
+        }
+        if isNewSuggestion { Statistics.shared.recordShown() }
         // Text mirror (per-app opt-in): preview the line + suggestion in a
         // floating mirror instead of placing ghost text in the field.
         if policy.textMirror {
@@ -1822,6 +1844,12 @@ final class Engine {
             } else {
                 overlay.showHUD(text: suggestion, windowRect: windowRect)
             }
+            return
+        }
+        if mode == .bubble, let caret = inlineCaret {
+            if isNewSuggestion { Statistics.shared.record(.separatePreview) }
+            lastPaintedCaret = nil
+            overlay.showBubble(text: suggestion, above: caret)
             return
         }
         if var caretRect = inlineCaret {
@@ -1881,7 +1909,30 @@ final class Engine {
             // Paint at a specific caret rect, font and baseline (nil: derived from
             // the caret box) — the occupancy retry must render where it verified.
             let paint: (CGRect, NSFont, NSColor?, CGFloat?) -> Void = { [weak self] rect, useFont, useColor, baseline in
-                guard let self, ContentAccessPolicy.isCurrent(origin) else { return }
+                guard let self, canPaint() else { return }
+                // A capture/font fit may finish after the host has moved its
+                // caret. Recheck the live insertion point at the final draw.
+                let freshCaret = AccessibilityBridge.caretRect(of: origin.element)
+                let freshMode = SuggestionOverlay.presentationMode(
+                    hasCaret: freshCaret != nil,
+                    caretConfirmedAtEnd: AccessibilityBridge.caretConfirmedAtEnd(of: origin.element),
+                    hasSelection: (AccessibilityBridge.selectedRange(of: origin.element)?.length ?? 0) > 0,
+                    laggyCaret: policy.laggyCaret)
+                if freshMode == .hidden {
+                    Statistics.shared.record(.suppressedSelection)
+                    self.clearSuggestion()
+                    return
+                }
+                let freshAnchor = freshCaret.map {
+                    self.normalizedLineHeight($0).offsetBy(dx: 0, dy: policy.verticalOffset)
+                }
+                guard freshMode == .inline, let freshAnchor, Self.sameCaret(freshAnchor, rect) else {
+                    Statistics.shared.record(.separatePreview)
+                    self.lastPaintedCaret = nil
+                    if let freshCaret { self.overlay.showBubble(text: suggestion, above: freshCaret) }
+                    else { self.overlay.showHUD(text: suggestion, windowRect: windowRect) }
+                    return
+                }
                 let shown = self.overlay.showInline(
                     text: suggestion, at: rect, font: useFont,
                     opacity: self.settings.ghostOpacity,
@@ -1928,7 +1979,7 @@ final class Engine {
                 && (caretAnchor.map { Self.caretMoved(caretRect, from: $0) } ?? false)
             if !trustedCaret { overlay.hide() }   // our own ghost must not trip the check
             Task { [weak self] in
-                guard let self, ContentAccessPolicy.isCurrent(origin) else { return }
+                guard let self, canPaint() else { return }
                 // Stop the strip well short of the input box's right edge — trailing
                 // controls (send buttons, icons) live there and read as "occupied".
                 func stripRight(of rect: CGRect) -> CGRect? {
@@ -1944,17 +1995,17 @@ final class Engine {
                 }
                 var target = anchored
                 var occupied = trustedCaret ? false : await checkOccupied(target)
-                guard self.currentSuggestion == suggestion, ContentAccessPolicy.isCurrent(origin) else { return }   // stale
+                guard canPaint() else { return }   // stale
                 if occupied == true {
                     try? await Task.sleep(nanoseconds: 250_000_000)
-                    guard self.currentSuggestion == suggestion, ContentAccessPolicy.isCurrent(origin) else { return }
+                    guard canPaint() else { return }
                     // Re-read the caret — the bounds may have settled by now — and
                     // both CHECK and PAINT at that fresh position.
                     target = (AccessibilityBridge.focusedElement()
                         .flatMap { AccessibilityBridge.caretRect(of: $0) } ?? anchored)
                         .offsetBy(dx: 0, dy: policy.verticalOffset)
                     occupied = await checkOccupied(target)
-                    guard self.currentSuggestion == suggestion, ContentAccessPolicy.isCurrent(origin) else { return }
+                    guard canPaint() else { return }
                     if occupied == true {
                         // Never paint a ghost over real pixels; the HUD pill is
                         // anchored to the window, so it can't overlap the text.
@@ -1983,7 +2034,7 @@ final class Engine {
                             caret: target, fieldFrame: elementFrame, key: fitKey + "|family", lineText: lineText,
                             verbose: self.settings.verboseLog, knownSize: style.font.pointSize),
                            fit.familyMatched, let family = fit.font.familyName {
-                            guard self.currentSuggestion == suggestion, ContentAccessPolicy.isCurrent(origin) else { return }
+                            guard canPaint() else { return }
                             self.fieldFamily[fitKey] = family
                             let matched = NSFontManager.shared.font(withFamily: family, traits: [], weight: 5,
                                                                     size: font.pointSize) ?? font
@@ -1997,7 +2048,7 @@ final class Engine {
                     }
                     guard self.baselineAdjust[fitKey] == nil,
                           let band = await GhostAppearanceProbe.inkBand(in: leftStrip),
-                          self.currentSuggestion == suggestion else { return }
+                          canPaint() else { return }
                     let bandHeight = band.bottom - band.top
                     guard bandHeight >= 6, bandHeight <= target.height + 2 else { return }
                     let estimate = SuggestionOverlay.defaultBaseline(caret: target, font: font)
@@ -2014,7 +2065,7 @@ final class Engine {
                     let lineText = element.flatMap { AccessibilityBridge.textBeforeCaret(of: $0, maxChars: 120) } ?? ""
                     if let fit = await FieldFitCache.shared.fit(caret: target, fieldFrame: elementFrame, key: fitKey,
                                                                 lineText: lineText, verbose: self.settings.verboseLog) {
-                        guard self.currentSuggestion == suggestion, ContentAccessPolicy.isCurrent(origin) else { return }
+                        guard canPaint() else { return }
                         paint(target, fittedFont(fit), fit.textColor, target.minY + fit.baselineOffset)
                         return
                     }
@@ -2024,7 +2075,7 @@ final class Engine {
                 var useFont = font
                 var probedBaseline: CGFloat?
                 if let band = await GhostAppearanceProbe.inkBand(in: leftStrip) {
-                    guard self.currentSuggestion == suggestion, ContentAccessPolicy.isCurrent(origin) else { return }
+                    guard canPaint() else { return }
                     let bandHeight = band.bottom - band.top
                     // Taller than the caret's line box: the strip caught more than
                     // one line (or an icon) — distrust it.
