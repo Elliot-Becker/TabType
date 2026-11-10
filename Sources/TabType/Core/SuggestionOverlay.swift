@@ -61,11 +61,16 @@ final class SuggestionOverlay {
     enum PresentationMode: Equatable { case inline, bubble, hud, hidden }
 
     /// Shared display decision, kept separate from window drawing for regressions.
-    nonisolated static func presentationMode(hasCaret: Bool, caretConfirmedAtEnd: Bool,
-                                             hasSelection: Bool, laggyCaret: Bool) -> PresentationMode {
+    nonisolated static func presentationMode(hasCaret: Bool, noTextAhead: Bool,
+                                             hasSelection: Bool, laggyCaret: Bool,
+                                             style: SuggestionDisplayStyle = .automatic) -> PresentationMode {
         if hasSelection { return .hidden }
         guard hasCaret else { return .hud }
-        return caretConfirmedAtEnd && !laggyCaret ? .inline : .bubble
+        if style == .separatePreview { return .bubble }
+        // Inline preference relaxes the app-wide fallback, not the live proof
+        // that the insertion point is clear. Settling and final geometry checks
+        // in Engine still apply, including in apps with delayed AX updates.
+        return noTextAhead && (style == .inlinePreferred || !laggyCaret) ? .inline : .bubble
     }
 
     private var panel: NSPanel?

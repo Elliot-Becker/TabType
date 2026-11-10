@@ -6,16 +6,69 @@ import AppKit
 final class PlacementTests: XCTestCase {
 
     func testInlineOnlyWithConfirmedEndAndReliableCaret() {
-        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, caretConfirmedAtEnd: true,
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: true,
             hasSelection: false, laggyCaret: false), .inline)
-        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, caretConfirmedAtEnd: false,
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: false,
             hasSelection: false, laggyCaret: false), .bubble)
-        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, caretConfirmedAtEnd: true,
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: true,
             hasSelection: false, laggyCaret: true), .bubble)
-        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: false, caretConfirmedAtEnd: false,
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: false, noTextAhead: false,
             hasSelection: false, laggyCaret: false), .hud)
-        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, caretConfirmedAtEnd: true,
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: true,
             hasSelection: true, laggyCaret: false), .hidden)
+    }
+
+    func testDisplayChoiceAllowsInlineInLaggyAppsOrKeepsPreviewSeparate() {
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: true,
+            hasSelection: false, laggyCaret: true, style: .inlinePreferred), .inline)
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: true,
+            hasSelection: false, laggyCaret: false, style: .separatePreview), .bubble)
+        XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: true,
+            hasSelection: false, laggyCaret: true, style: .automatic), .bubble)
+    }
+
+    func testEveryDisplayChoiceProtectsExistingTextSelectionAndMissingCaret() {
+        for style in SuggestionDisplayStyle.allCases {
+            for laggy in [false, true] {
+                XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: false,
+                    hasSelection: false, laggyCaret: laggy, style: style), .bubble, style.rawValue)
+                XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: true,
+                    hasSelection: true, laggyCaret: laggy, style: style), .hidden, style.rawValue)
+                XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: false, noTextAhead: true,
+                    hasSelection: false, laggyCaret: laggy, style: style), .hud, style.rawValue)
+            }
+        }
+    }
+
+    func testInlineChoiceAdaptsToBlankTailAndExistingWriting() {
+        let cases: [(String, Int, SuggestionOverlay.PresentationMode)] = [
+            ("hello", 5, .inline),
+            ("hello \n\t\n", 5, .inline),
+            ("hello.", 5, .bubble),
+            ("hello world", 5, .bubble),
+            ("hello\n\nnext paragraph", 5, .bubble),
+            ("hello\u{200B}", 5, .bubble),
+        ]
+        for (text, offset, expected) in cases {
+            let clear = AccessibilityBridge.caretHasNoTextAhead(text: text,
+                selectionLocation: offset, selectionLength: 0)
+            XCTAssertEqual(SuggestionOverlay.presentationMode(hasCaret: true, noTextAhead: clear,
+                hasSelection: false, laggyCaret: true, style: .inlinePreferred), expected, text)
+        }
+    }
+
+    func testClearTailProofRejectsSelectionsInvalidOffsetsAndSplitUnicode() {
+        let text = "A👍🏽é"
+        XCTAssertTrue(AccessibilityBridge.caretHasNoTextAhead(text: text + " \n",
+            selectionLocation: text.utf16.count, selectionLength: 0))
+        for offset in [-1, 2, text.utf16.count + 1] {
+            XCTAssertFalse(AccessibilityBridge.caretHasNoTextAhead(text: text,
+                selectionLocation: offset, selectionLength: 0))
+        }
+        XCTAssertFalse(AccessibilityBridge.caretHasNoTextAhead(text: text,
+            selectionLocation: text.utf16.count, selectionLength: 1))
+        XCTAssertFalse(AccessibilityBridge.caretHasNoTextAhead(text: text,
+            selectionLocation: text.utf16.count, selectionLength: -1))
     }
 
     func testEndProofRejectsInvalidAndSelectedRanges() {

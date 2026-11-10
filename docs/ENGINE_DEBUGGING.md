@@ -30,6 +30,12 @@ An illustrative local smoke test with `I want to be professio` produced the suff
 
 For ordinary use, keep only one system-wide completion app running. A Mac restart is not an engine fix. Restarting the affected app can help distinguish a cached host preference from a TabType defect, but first preserve a harmless reproduction.
 
+### Suggestion display choices
+
+General → Appearance → Suggestion display offers Automatic, Inline when possible, and Separate preview. Automatic retains the conservative app policy; Inline when possible permits inline drawing in delayed-caret apps after the existing settle and final-position checks; Separate preview always uses the off-line bubble or window HUD. A per-app text-mirror compatibility override still takes precedence.
+
+Every choice suppresses previews for selected text and keeps inline drawing out of positions with following text or an unproven insertion point. Trailing spaces or empty lines count as clear space; any following non-whitespace character, including an existing period, requires the separate preview. The full remaining field is checked, so a blank line followed by another paragraph is not considered clear. An overlay cannot move the host's punctuation out of the way. Wrapped inline drawing still requires the stricter exact field-end proof. Test both modes with fictional text, then move into existing text and confirm a separate preview or no suggestion. Settings changes invalidate in-flight content and drawing; the final paint also requires the captured display choice to remain current. The display preference persists and participates in the existing optional encrypted settings sync; missing or unknown peer values preserve the local choice. No model weights or diagnostic collection change.
+
 ## 1. Local models, model swaps, and fine-tuning
 
 The measured reference is the installed **Qwen3-4B-Base i1 Q4_K_M GGUF**, approximately 2.5 GB. Its SHA-256 is `ff17d19ad5f8c7ddc205d1b8c6fadc360449f06a499440dce8c81db6302f19ac`. TabType uses llama.cpp on Metal; it is not calling a cloud completion API. The upstream [Qwen model card](https://huggingface.co/Qwen/Qwen3-4B-Base) identifies the base model and its license. The quantized artifact is a separate file whose provenance and checksum must also be checked.

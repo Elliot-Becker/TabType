@@ -34,6 +34,44 @@ final class PredictionSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings(defaults: defaults).predictionStyle, .balanced)
     }
 
+    func testDisplayChoicePersistsAndDefaultsPreserveAutomaticPlacement() {
+        let name = "TabTypeTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        let overrides = AppPolicyStore.userOverrides
+        let verbose = Log.shared.verbose
+        defer {
+            defaults.removePersistentDomain(forName: name)
+            AppPolicyStore.userOverrides = overrides
+            Log.shared.verbose = verbose
+        }
+        XCTAssertEqual(AppSettings(defaults: defaults).suggestionDisplayStyle, .automatic)
+        for style in SuggestionDisplayStyle.allCases {
+            AppSettings(defaults: defaults).suggestionDisplayStyle = style
+            XCTAssertEqual(AppSettings(defaults: defaults).suggestionDisplayStyle, style)
+        }
+        defaults.set("future-display", forKey: "suggestionDisplayStyle")
+        XCTAssertEqual(AppSettings(defaults: defaults).suggestionDisplayStyle, .automatic)
+    }
+
+    func testDisplaySyncRoundTripAndOlderPeerPreserveLocalChoice() throws {
+        let settings = settings()
+        settings.suggestionDisplayStyle = .inlinePreferred
+        let snapshot = try JSONEncoder().encode(settings.syncSnapshot)
+        settings.suggestionDisplayStyle = .separatePreview
+        settings.apply(try JSONDecoder().decode(SyncedSettings.self, from: snapshot))
+        XCTAssertEqual(settings.suggestionDisplayStyle, .inlinePreferred)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: snapshot) as? [String: Any])
+        object.removeValue(forKey: "suggestionDisplayStyle")
+        settings.suggestionDisplayStyle = .separatePreview
+        settings.apply(try JSONDecoder().decode(SyncedSettings.self,
+            from: JSONSerialization.data(withJSONObject: object)))
+        XCTAssertEqual(settings.suggestionDisplayStyle, .separatePreview)
+        object["suggestionDisplayStyle"] = "future-display"
+        settings.apply(try JSONDecoder().decode(SyncedSettings.self,
+            from: JSONSerialization.data(withJSONObject: object)))
+        XCTAssertEqual(settings.suggestionDisplayStyle, .separatePreview)
+    }
+
     func testOldAndUnknownSyncValuesPreservePrivacySettings() throws {
         let settings = settings()
         settings.predictionStyle = .careful

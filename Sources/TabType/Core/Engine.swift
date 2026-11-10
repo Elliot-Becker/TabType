@@ -1808,9 +1808,11 @@ final class Engine {
         shownAllowWrap = allowWrap
         guard let presentation = session.ghost else { return }
         let editAt = lastKeystrokeAt
+        let displayStyle = settings.suggestionDisplayStyle
         let canPaint: () -> Bool = { [weak self] in
             guard let self else { return false }
-            guard self.session.ghost == presentation, self.lastKeystrokeAt == editAt else {
+            guard self.session.ghost == presentation, self.lastKeystrokeAt == editAt,
+                  self.settings.suggestionDisplayStyle == displayStyle else {
                 Statistics.shared.record(.discardedStalePaint)
                 return false
             }
@@ -1819,9 +1821,9 @@ final class Engine {
         let element = origin.element
         let mode = SuggestionOverlay.presentationMode(
             hasCaret: inlineCaret != nil,
-            caretConfirmedAtEnd: AccessibilityBridge.caretConfirmedAtEnd(of: element),
+            noTextAhead: AccessibilityBridge.caretHasNoTextAhead(of: element),
             hasSelection: (AccessibilityBridge.selectedRange(of: element)?.length ?? 0) > 0,
-            laggyCaret: policy.laggyCaret)
+            laggyCaret: policy.laggyCaret, style: displayStyle)
         if mode == .hidden {
             Statistics.shared.record(.suppressedSelection)
             clearSuggestion()
@@ -1915,9 +1917,9 @@ final class Engine {
                 let freshCaret = AccessibilityBridge.caretRect(of: origin.element)
                 let freshMode = SuggestionOverlay.presentationMode(
                     hasCaret: freshCaret != nil,
-                    caretConfirmedAtEnd: AccessibilityBridge.caretConfirmedAtEnd(of: origin.element),
+                    noTextAhead: AccessibilityBridge.caretHasNoTextAhead(of: origin.element),
                     hasSelection: (AccessibilityBridge.selectedRange(of: origin.element)?.length ?? 0) > 0,
-                    laggyCaret: policy.laggyCaret)
+                    laggyCaret: policy.laggyCaret, style: displayStyle)
                 if freshMode == .hidden {
                     Statistics.shared.record(.suppressedSelection)
                     self.clearSuggestion()

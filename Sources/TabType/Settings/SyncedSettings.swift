@@ -23,6 +23,7 @@ struct SyncedSettings: Codable, Equatable {
     var appOverrides: [String: AppOverride]
     var predictionStyle: String?
     var personalizationScope: String?
+    var suggestionDisplayStyle: String?
 }
 
 extension AppSettings {
@@ -46,7 +47,8 @@ extension AppSettings {
             personalizationStrength: personalizationStrength,
             recordWithoutAccepts: recordWithoutAccepts, collectTypingHistory: collectTypingHistory,
             disabledDomains: disabledDomains, appOverrides: appOverrides,
-            predictionStyle: predictionStyle.rawValue, personalizationScope: personalizationScope.rawValue)
+            predictionStyle: predictionStyle.rawValue, personalizationScope: personalizationScope.rawValue,
+            suggestionDisplayStyle: suggestionDisplayStyle.rawValue)
     }
 
     func apply(_ s: SyncedSettings) {
@@ -74,5 +76,9 @@ extension AppSettings {
         // Older peers omit this preference. An unknown explicit scope must not
         // broaden reuse to all apps; keep the stricter current-app boundary.
         if let raw = s.personalizationScope { personalizationScope = PersonalizationScope(rawValue: raw) ?? .currentApp }
+        // Missing or future choices from another Mac preserve the local choice.
+        if let style = s.suggestionDisplayStyle.flatMap(SuggestionDisplayStyle.init(rawValue:)) {
+            suggestionDisplayStyle = style
+        }
     }
 }

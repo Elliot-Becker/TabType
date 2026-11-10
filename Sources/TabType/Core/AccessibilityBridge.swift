@@ -309,6 +309,23 @@ enum AccessibilityBridge {
         textUTF16Length >= 0 && selectionLocation == textUTF16Length && selectionLength == 0
     }
 
+    /// A trailing blank line is clear space, not existing writing. A period or
+    /// any other non-whitespace text anywhere after the caret requires a preview
+    /// off the typing line. Invalid or unreadable ranges never grant inline paint.
+    static func caretHasNoTextAhead(of element: AXUIElement) -> Bool {
+        guard let full = stringValue(of: element), let range = selectedRange(of: element) else { return false }
+        return caretHasNoTextAhead(text: full, selectionLocation: range.location, selectionLength: range.length)
+    }
+
+    nonisolated static func caretHasNoTextAhead(text: String, selectionLocation: Int,
+                                               selectionLength: Int) -> Bool {
+        let length = text.utf16.count
+        guard selectionLength == 0, selectionLocation >= 0, selectionLocation <= length,
+              let tail = Range(NSRange(location: selectionLocation, length: length - selectionLocation),
+                               in: text) else { return false }
+        return text[tail].allSatisfy(\.isWhitespace)
+    }
+
     /// Text immediately preceding the caret, capped at `maxChars`.
     /// Returns nil if AX text isn't available for this element.
     static func textBeforeCaret(of element: AXUIElement, maxChars: Int) -> String? {

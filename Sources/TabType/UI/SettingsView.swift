@@ -21,7 +21,7 @@ struct SettingsView: View {
         var keywords: String {
             switch self {
             case .setup: return "permissions accessibility recording start"
-            case .general: return "battery launch login completion length opacity appearance enable predictions accuracy confidence careful frequent quality"
+            case .general: return "battery launch login completion length opacity appearance enable predictions accuracy confidence careful frequent quality inline separate preview bubble display placement"
             case .engine: return "download gguf RAM memory local model"
             case .context: return "privacy screenshots clipboard screen recording accessibility"
             case .personalization: return "privacy history learning writing erase delete sync iCloud voice name instructions scope reuse phrases app"
@@ -169,11 +169,22 @@ struct SettingsView: View {
 
 private struct GhostPreview: View {
     let opacity: Double
+    let style: SuggestionDisplayStyle
     var body: some View {
-        HStack(spacing: 0) {
-            Text("I'll send the report ")
-            Text("by end of day.")
-                .foregroundStyle(.secondary.opacity(opacity))
+        VStack(alignment: .leading, spacing: 8) {
+            if style == .separatePreview {
+                Text("by end of day.   ⇥ Tab")
+                    .font(.callout)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+            }
+            HStack(spacing: 0) {
+                Text("I'll send the report ")
+                if style != .separatePreview {
+                    Text("by end of day.")
+                        .foregroundStyle(.secondary.opacity(opacity))
+                }
+            }
         }
         .font(.system(size: 15))
         .padding(10)
@@ -247,7 +258,15 @@ struct GeneralSettingsView: View {
             }
 
             Section("Appearance") {
-                GhostPreview(opacity: settings.ghostOpacity)
+                Picker("Suggestion display", selection: $settings.suggestionDisplayStyle) {
+                    ForEach(SuggestionDisplayStyle.allCases, id: \.self) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .accessibilityIdentifier("settings.suggestionDisplay")
+                Text(settings.suggestionDisplayStyle.explanation)
+                    .font(.caption).foregroundStyle(.secondary)
+                GhostPreview(opacity: settings.ghostOpacity, style: settings.suggestionDisplayStyle)
                     .listRowInsets(EdgeInsets())
                     .padding(.vertical, 4)
                 HStack {

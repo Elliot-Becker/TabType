@@ -2,6 +2,31 @@ import Foundation
 import Combine
 import TabTypeKit
 
+enum SuggestionDisplayStyle: String, CaseIterable, Codable {
+    case automatic
+    case inlinePreferred = "inline"
+    case separatePreview = "separate"
+
+    var title: String {
+        switch self {
+        case .automatic: return "Automatic"
+        case .inlinePreferred: return "Inline when possible"
+        case .separatePreview: return "Separate preview"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .automatic:
+            return "Uses inline text in supported apps and a separate preview in apps with less reliable caret positions."
+        case .inlinePreferred:
+            return "Shows inline text when nothing but blank space follows the caret, including in ChatGPT. Switches to a preview above the text when existing writing follows or the position is uncertain."
+        case .separatePreview:
+            return "Shows suggestions in a separate preview near the caret, keeping them off the typing line."
+        }
+    }
+}
+
 /// User-configurable settings, persisted in `UserDefaults`.
 /// Observable so SwiftUI views and the engine react to changes live.
 @MainActor
@@ -25,6 +50,9 @@ final class AppSettings: ObservableObject {
     @Published var maxWords: Int { didSet { defaults.set(maxWords, forKey: Keys.maxWords) } }
     /// Ghost-text opacity, 0.15–1.0.
     @Published var ghostOpacity: Double { didSet { defaults.set(ghostOpacity, forKey: Keys.ghostOpacity) } }
+    @Published var suggestionDisplayStyle: SuggestionDisplayStyle {
+        didSet { defaults.set(suggestionDisplayStyle.rawValue, forKey: Keys.suggestionDisplayStyle) }
+    }
 
 
     // MARK: Shortcuts
@@ -179,6 +207,8 @@ final class AppSettings: ObservableObject {
         // The length setting is the source of truth (older builds stored 8 here).
         maxWords = AppSettings.words(for: defaults.string(forKey: Keys.completionLength) ?? "medium")
         ghostOpacity = defaults.object(forKey: Keys.ghostOpacity) as? Double ?? 0.45
+        suggestionDisplayStyle = defaults.string(forKey: Keys.suggestionDisplayStyle)
+            .flatMap(SuggestionDisplayStyle.init(rawValue:)) ?? .automatic
         batteryOnDemandOnly = defaults.object(forKey: Keys.batteryOnDemandOnly) as? Bool ?? false
         batteryShorterCompletions = defaults.object(forKey: Keys.batteryShorterCompletions) as? Bool ?? false
         batterySmallerModel = defaults.object(forKey: Keys.batterySmallerModel) as? Bool ?? false
@@ -264,6 +294,7 @@ final class AppSettings: ObservableObject {
                                 "debounceMs", "continuousGeneration", "contextChars", "screenCropMode",
                                 "textMirroring", "batteryUseDebounce", "llamaAdapter", "acceptWholeLine"]
         static let ghostOpacity = "ghostOpacity"
+        static let suggestionDisplayStyle = "suggestionDisplayStyle"
         static let batteryOnDemandOnly = "batteryOnDemandOnly"
         static let batteryShorterCompletions = "batteryShorterCompletions"
         static let batterySmallerModel = "batterySmallerModel"
