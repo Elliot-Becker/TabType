@@ -23,6 +23,10 @@ build_scheme() {
 }
 
 cmd="${1:-app}"
+if [[ -n "${TABTYPE_FORK_BUILD:-}" && ! "$TABTYPE_FORK_BUILD" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "TABTYPE_FORK_BUILD must contain only letters, digits, dots, underscores or hyphens." >&2
+    exit 1
+fi
 case "$cmd" in
 eval)
     swift build -c release --product tabtype-eval
@@ -61,6 +65,16 @@ app)
 
     # Info.plist & Icon
     cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+    # Optional local-fork identity is part of the signed bundle. Official builds
+    # keep their existing metadata when this label is absent.
+    if [[ -n "${TABTYPE_FORK_BUILD:-}" ]]; then
+        REVISION="$(git rev-parse --short=12 HEAD)"
+        if ! git diff --quiet HEAD -- Sources Resources Scripts/build.sh; then
+            REVISION="$REVISION-modified"
+        fi
+        /usr/libexec/PlistBuddy -c "Add :TabTypeForkBuild string $TABTYPE_FORK_BUILD" "$APP/Contents/Info.plist"
+        /usr/libexec/PlistBuddy -c "Add :TabTypeSourceRevision string $REVISION" "$APP/Contents/Info.plist"
+    fi
     if [ -f "$ROOT/Resources/AppIcon.icns" ]; then
         cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
     fi

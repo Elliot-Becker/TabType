@@ -443,6 +443,15 @@ struct AboutPane: View {
                             Text("TabType").font(.title2).bold()
                             Text("Free, open-source, on-device autocomplete for macOS.")
                                 .font(.callout).foregroundStyle(.secondary)
+                            if let forkBuild = Bundle.main.object(forInfoDictionaryKey: "TabTypeForkBuild") as? String {
+                                Text("Fork build \(forkBuild)")
+                                    .font(.callout).foregroundStyle(.secondary)
+                                if let revision = Bundle.main.object(forInfoDictionaryKey: "TabTypeSourceRevision") as? String {
+                                    Text("Source \(revision)")
+                                        .font(.caption.monospaced()).foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                            }
                         }
                     }
                 }
